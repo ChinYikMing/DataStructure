@@ -27,7 +27,9 @@ int list_push_back(List *list, void *data);
 
 int list_push_front(List *list, void *data);
 
-int list_delete(List *list, int id);int main(){
+int list_delete(List *list, int id);
+
+int main(){
     List list;
     list_init(&list);
 
