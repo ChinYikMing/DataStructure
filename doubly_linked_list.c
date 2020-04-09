@@ -132,4 +132,35 @@ int list_delete(List *list, int id){
 	list->size--;
 	return 0;
     } 
+
+    /* check the last node */
+    ptr = list->tail;
+    u = ptr->data;
+    if(u->id == id){
+	Node *prev = ptr->prev;
+//	free(u->name);
+	free(ptr);
+	prev->next = NULL;
+	list->tail = prev;
+	list->size--;
+	return 0;
+    }
+
+    ptr = list->head->next;
+    /* check the between nodes */
+    while(ptr->next && ptr->next != list->head){
+	u = ptr->data;
+	if(u->id == id){
+	    Node *prev = ptr->prev;
+	    Node *next = ptr->next;
+//	    free(u->name);
+	    free(ptr);
+	    prev->next = next;
+	    next->prev = prev;
+	    list->size--;
+	    return 0;
+	}
+	ptr = ptr->next;
+    }
+    return -1;
 }
