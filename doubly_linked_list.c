@@ -130,4 +130,4 @@ int list_delete(List *list, int id){
 	list->size--;
 	return 0;
     } 
-
+}
