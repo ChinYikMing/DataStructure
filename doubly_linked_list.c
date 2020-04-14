@@ -1,5 +1,6 @@
-#include <stdio.h>
-#include <stdlib.h>
+#include    <stdio.h>
+#include    <stdlib.h>
+#include    <string.h>
 
 typedef struct node Node;
 struct node {
@@ -10,7 +11,6 @@ struct node {
 
 typedef struct list {
     Node *head;
-    Node *tail;
     size_t size;
 } List;
 
@@ -20,13 +20,9 @@ typedef struct user {
 } User;
 
 int list_init(List *list);
-
 Node *node_create(void *data);
-
 int list_push_back(List *list, void *data);
-
 int list_push_front(List *list, void *data);
-
 int list_delete(List *list, int id);
 
 int main(){
@@ -48,19 +44,25 @@ int main(){
 	.id = 12
     }); 
 
+    list_push_front(&list, &(User){
+	.name = "Jason",
+	.id = 45
+    });
+
     list_delete(&list, 12);
+    list_delete(&list, 11);
 
     Node *ptr = list.head;
     while(ptr){
 	User *u = ptr->data;
 	printf("%s's id is %d\n", u->name, u->id);
 	ptr = ptr->next;
+	if(ptr == list.head) break;
     }
 }
 
 int list_init(List *list){
     list->head = NULL;
-    list->tail = NULL;
     list->size = 0;
     return 0;
 }
@@ -81,14 +83,19 @@ int list_push_back(List *list, void *data){
 
     if(!list->head){
 	list->head = new_node;
-	list->tail = new_node;
 	return 0;
     }
 
-    /* change the list->tail */
-    list->tail->next = new_node;
-    new_node->prev = list->tail; 
-    list->tail = new_node;
+    Node *ptr = list->head;
+    while(ptr->next && ptr->next != list->head)
+	ptr = ptr->next;
+
+    ptr->next = new_node;
+    new_node->prev = ptr; 
+
+    /* implement circular linked list */
+    new_node->next = list->head;
+    list->head->prev = new_node;
     return 0;
 }
 
@@ -103,7 +110,15 @@ int list_push_front(List *list, void *data){
 	return 0;
     }
 
-    /* change the list->head */
+    /* find the last node to implement circular linked list */
+    Node *ptr = list->head;
+    while(ptr->next && ptr->next != list->head)
+	ptr = ptr->next;
+
+    ptr->next = new_node;
+    new_node->prev = ptr;
+
+    /* implement circular linked list */
     new_node->next = list->head;
     list->head->prev = new_node;
     list->head = new_node;
@@ -119,34 +134,37 @@ int list_delete(List *list, int id){
 //	free(u->name);
 	free(ptr);
 	list->head = NULL;
-	list->tail = NULL;
 	return 0;
     }
     
     /* check the first node which the list has at least 2 nodes*/
     if(u->id == id){
+	Node *prev = ptr->prev;
 	Node *next = ptr->next;
 //	free(u->name);
 	free(ptr);
+	next->prev = prev;
+	prev->next = next;
 	list->head = next;
 	list->size--;
 	return 0;
     } 
 
-    /* check the last node */
-    ptr = list->tail;
+    /* check the last node which the list has at least 2 nodes */
+    ptr = ptr->prev;
     u = ptr->data;
     if(u->id == id){
 	Node *prev = ptr->prev;
+	Node *next = ptr->next;
 //	free(u->name);
 	free(ptr);
-	prev->next = NULL;
-	list->tail = prev;
+	prev->next = next;
+	next->prev = prev;
 	list->size--;
 	return 0;
     }
 
-    ptr = list->head->next;
+    ptr = list->head;
     /* check the between nodes */
     while(ptr->next && ptr->next != list->head){
 	u = ptr->data;
