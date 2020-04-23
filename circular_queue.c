@@ -3,7 +3,7 @@
 #include    <stdlib.h>
 
 #define	    BUF_SIZE	0x0400 
-#define	    RBUF_DFT_CAPACITY	64u
+#define	    RBUF_DFT_CAPACITY	16u
 
 /* ERR STATUS CODE */
 #define	    ERR_MALLOC_FAILED	-1
@@ -35,12 +35,10 @@ int rbuf_isempty(Rbuf *rbuf);
 int main(){
     Rbuf rbuf;
     rbuf_init(&rbuf);
-
     char buf[BUF_SIZE]; 
     char cmd;
     while(fgets(buf, BUF_SIZE, stdin)){
 	buf[strcspn(buf, "\r\n")] = '\0';
-
 	cmd = *(buf + 1);
 
 	switch(cmd){
@@ -66,6 +64,7 @@ int main(){
 	      break;
 	}	
     }
+
     rbuf_destruct(&rbuf);
     return 0;
 }
@@ -94,9 +93,24 @@ int rbuf_destruct(Rbuf *rbuf){
 
 int rbuf_push(Rbuf *rbuf, int data){
     if(rbuf_isfull(rbuf)){
-	printf("The ring buffer is full!\n");
-	return EXIT_FAILURE;
+	size_t new_capacity = rbuf->capacity << 1u;
+	size_t data_cnt_after_head = rbuf->capacity - rbuf->head;
+	void *tmp = realloc(rbuf->buf, sizeof(int) * new_capacity);
+	if(!tmp) return ERR_MALLOC_FAILED;
+	// invariant: tmp is malloc successfully
+	rbuf->buf = tmp;
+
+	/* reset the head if necessary */
+	if(rbuf->head > rbuf->tail){
+	    for(size_t i = rbuf->head, counter = data_cnt_after_head; i < rbuf->capacity; ++i, --counter)
+		rbuf->buf[(i << 1u) + counter] = rbuf->buf[i]; 
+	    
+	    rbuf->head = (rbuf->head << 1u) + data_cnt_after_head;
+	}
+
+	rbuf->capacity = new_capacity;
     }
+    // invariant: the rbuf has enough capacity to store data
     rbuf->buf[rbuf->tail] = data;
     rbuf->tail = (rbuf->tail + 1) % rbuf->capacity;    
     rbuf->size++;
@@ -125,7 +139,7 @@ int rbuf_print(Rbuf *rbuf){
     }
     //invariant: the rbuf has entities
     printf("Ring buffer: ");
-    for(size_t i = rbuf->head, counter = 0; counter < rbuf->size; (i = (i+1) % rbuf->capacity), counter++)
+    for(size_t i = rbuf->head, counter = 0; counter < rbuf->size; (i = (i+1) % rbuf->capacity), ++counter)
 	printf("%d ", rbuf->buf[i]);
     printf("\n");
 
