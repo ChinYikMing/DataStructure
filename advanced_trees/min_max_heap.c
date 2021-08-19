@@ -47,7 +47,7 @@ static int mmheap_delete_min(MinMaxHeap *mmheap);
 static int mmheap_delete_max(MinMaxHeap *mmheap);
 static int mmheap_delete(MinMaxHeap *mmheap, int delete_min);
 static int mmheap_print(MinMaxHeap *mmheap);
-static Node **mmheap_find_next_pos(MinMaxHeap *mmheap, Node **next_pos, int *is_left); /* return is the next_pos */
+static Node **mmheap_find_next_pos(MinMaxHeap *mmheap, Node **next_pos_parent, int *is_left); /* return is the next_pos */
 
 static Node *node_new(int val);
 static int node_swap_val(Node *n1, Node *n2);
