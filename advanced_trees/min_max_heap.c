@@ -31,6 +31,13 @@ typedef struct min_max_heap {
     Node *last_node;
 } MinMaxHeap;
 
+enum {
+    DELETE_MIN,
+    DELETE_MAX,
+    VERIFY_MIN,
+    VERIFY_MAX
+};
+
 static int mmheap_init(MinMaxHeap *mmheap);
 static int mmheap_destroy(MinMaxHeap *mmheap);
 static Node *mmheap_min(MinMaxHeap *mmheap, Node *from, Node **new_min_node_parent);
@@ -38,11 +45,13 @@ static Node *mmheap_max(MinMaxHeap *mmheap, Node *from, Node **new_max_node_pare
 static int mmheap_insert(MinMaxHeap *mmheap, int val);
 static int mmheap_delete_min(MinMaxHeap *mmheap);
 static int mmheap_delete_max(MinMaxHeap *mmheap);
+static int mmheap_delete(MinMaxHeap *mmheap, int delete_min);
 static int mmheap_print(MinMaxHeap *mmheap);
 static Node **mmheap_find_next_pos(MinMaxHeap *mmheap, Node **next_pos, int *is_left); /* return is the next_pos */
 
 static Node *node_new(int val);
 static int node_swap_val(Node *n1, Node *n2);
+static int node_verify(Node *node_challenge, int verify_min);
 static int node_verify_min(Node *node_challenge);
 static int node_verify_max(Node *node_challenge);
 static Node *node_max(Node *root);
@@ -92,12 +101,12 @@ int main(){
     // printf("second delete min: %d\n", min);
     // mmheap_print(&mmheap);
 
-    // int max = mmheap_delete_max(&mmheap);
-    // printf("delete max: %d\n", max);
-    // mmheap_print(&mmheap);
-    // max = mmheap_delete_max(&mmheap);
-    // printf("second delete max: %d\n", max);
-    // mmheap_print(&mmheap);
+    int max = mmheap_delete_max(&mmheap);
+    printf("delete max: %d\n", max);
+    mmheap_print(&mmheap);
+    max = mmheap_delete_max(&mmheap);
+    printf("second delete max: %d\n", max);
+    mmheap_print(&mmheap);
 
     mmheap_destroy(&mmheap);
     return 0;
@@ -240,18 +249,30 @@ static int mmheap_print(MinMaxHeap *mmheap){
     return 0;
 }
 
-static int mmheap_delete_max(MinMaxHeap *mmheap){
-    Node *root = mmheap->root;
-    if(!root)
+typedef Node *(*mmheap_delete_helper)(MinMaxHeap *, Node *, Node **); /* mmheap_max or mmheap_min */
+static int mmheap_delete(MinMaxHeap *mmheap, int delete_min){
+    if(delete_min != DELETE_MIN && delete_min != DELETE_MAX)
         return 0;
 
+    Node *root = mmheap->root;
     Node *last_node = mmheap->last_node;
     Node *prev_last_node = last_node->prev_last_node;
     Node *new_max_node, *new_max_node_parent;
-    Node *max_node = node_max(root);
-    int max = max_node->val;
+    Node *node = node_max(root);
+    Node *new_node, *new_node_parent;
+    mmheap_delete_helper helper;
+    int ret;
 
-    node_swap_val(max_node, last_node);
+    if(delete_min == DELETE_MAX){
+        node = node_max(root);
+        helper = mmheap_max;
+    } else {
+        node = root;
+        helper = mmheap_min;
+    }
+    ret = node->val;
+
+    node_swap_val(node, last_node);
     if(last_node->is_left == 0)
         last_node->parent->left = NULL;
     else if(last_node->is_left == 1)
@@ -260,24 +281,32 @@ static int mmheap_delete_max(MinMaxHeap *mmheap){
     mmheap->last_node = prev_last_node;
 
 again:
-    new_max_node = new_max_node_parent = NULL;
+    new_node = new_node_parent = NULL;
 
-    if(!root->left && !root->right){
+    if(!node->left && !node->right){
         if(!mmheap->last_node)       /* min max heap is empty */
             mmheap->root = NULL;
         goto end;
     } else {
-        new_max_node = mmheap_max(mmheap, max_node, &new_max_node_parent);
-        if(new_max_node){
-            node_swap_val(new_max_node, max_node);                      /* (1) */
-            if((max_node->left && max_node->left == new_max_node) || 
-                    (max_node->right && max_node->right == new_max_node))
+        new_node = helper(mmheap, node, &new_node_parent);
+        if(new_node){
+            node_swap_val(new_node, node);
+            if((node->left && node->left == new_node) || 
+                    (node->right && node->right == new_node))
                     goto end;
             else {
-                if(new_max_node->val < new_max_node_parent->val){        /* new_max_node has already swap in (1), so new_max_node is not original */
-                    node_swap_val(new_max_node, new_max_node_parent);
-                    root = new_max_node;
-                    goto again;
+                if(delete_min == DELETE_MIN){
+                    if(new_node->val > new_node_parent->val){      
+                        node_swap_val(new_node, new_node_parent);
+                        node = new_node;
+                        goto again;
+                    }
+                } else {
+                    if(new_node->val < new_node_parent->val){
+                        node_swap_val(new_node, new_node_parent);
+                        node = new_node;
+                        goto again;
+                    }
                 }
                 goto end;
             }
@@ -286,7 +315,15 @@ again:
     }
 
 end:
-    return max;
+    return ret;
+}
+
+static int mmheap_delete_max(MinMaxHeap *mmheap){
+    Node *root = mmheap->root;
+    if(!root)
+        return 0;
+
+    return  mmheap_delete(mmheap, DELETE_MAX);
 }
 
 static int mmheap_delete_min(MinMaxHeap *mmheap){
@@ -294,47 +331,7 @@ static int mmheap_delete_min(MinMaxHeap *mmheap){
     if(!root)
         return 0;
 
-    Node *last_node = mmheap->last_node;
-    Node *prev_last_node = last_node->prev_last_node;
-    Node *new_min_node, *new_min_node_parent;
-    int min = mmheap->root->val;
-
-    node_swap_val(root, last_node);
-    if(last_node->is_left == 0)
-        last_node->parent->left = NULL;
-    else if(last_node->is_left == 1)
-        last_node->parent->right = NULL;
-    free(last_node);
-    mmheap->last_node = prev_last_node;
-
-again:
-    new_min_node = new_min_node_parent = NULL;
-
-    if(!root->left && !root->right){
-        if(!mmheap->last_node)       /* min max heap is empty */
-            mmheap->root = NULL;
-        goto end;
-    } else {
-        new_min_node = mmheap_min(mmheap, root, &new_min_node_parent);
-        if(new_min_node){
-            node_swap_val(new_min_node, root);                      /* (1) */
-            if((root->left && root->left == new_min_node) || 
-                    (root->right && root->right == new_min_node))
-                    goto end;
-            else {
-                if(new_min_node->val > new_min_node_parent->val){       /* new_min_node has already swap in (1), so new_min_node is not original */
-                    node_swap_val(new_min_node, new_min_node_parent);
-                    root = new_min_node;
-                    goto again;
-                }
-                goto end;
-            }
-        }
-        goto end;
-    }
-
-end:
-    return min;
+    return mmheap_delete(mmheap, DELETE_MIN);
 }
 
 /* todo: can be more effiency by skipping min level */
@@ -475,46 +472,6 @@ int rbuf_isempty(Rbuf *rbuf){
     return (rbuf->size == 0);
 }
 
-static int node_verify_min(Node *node_challenge){
-    if(!node_challenge)
-        goto end;
-
-    if(!node_challenge->parent)
-        goto end;
-
-    Node *node_challenge_target = node_challenge->parent->parent;
-    if(!node_challenge_target)
-        goto end;
-    
-    if(node_challenge->val < node_challenge_target->val){
-        node_swap_val(node_challenge, node_challenge_target);
-        node_verify_min(node_challenge_target);
-    }
-
-end:
-    return 0;
-}
-
-static int node_verify_max(Node *node_challenge){
-    if(!node_challenge)
-        goto end;
-
-    if(!node_challenge->parent)
-        goto end;
-
-    Node *node_challenge_target = node_challenge->parent->parent;
-    if(!node_challenge_target)
-        goto end;
-    
-    if(node_challenge->val > node_challenge_target->val){
-        node_swap_val(node_challenge, node_challenge_target);
-        node_verify_max(node_challenge_target);
-    }
-
-end:
-    return 0;
-}
-
 static Node *node_new(int val){
     Node *new_node = malloc(sizeof(Node));
     if(!new_node)
@@ -548,4 +505,47 @@ static Node *node_max(Node *root){
         return left;
 
     return root;    /* root is the max */
+}
+
+typedef int(*node_verify_helper)(Node *); /* node_verify_min or node_verify_max */
+static int node_verify(Node *node_challenge, int verify_min){
+    node_verify_helper helper;
+
+    if(verify_min == VERIFY_MIN)
+        helper = node_verify_min;
+    else
+        helper = node_verify_max;
+
+    if(!node_challenge)
+        goto end;
+
+    if(!node_challenge->parent)
+        goto end;
+
+    Node *node_challenge_target = node_challenge->parent->parent;
+    if(!node_challenge_target)
+        goto end;
+    
+    if(verify_min == VERIFY_MIN){
+        if(node_challenge->val < node_challenge_target->val){
+            node_swap_val(node_challenge, node_challenge_target);
+            helper(node_challenge_target);
+        }
+    } else {
+        if(node_challenge->val > node_challenge_target->val){
+            node_swap_val(node_challenge, node_challenge_target);
+            helper(node_challenge_target);
+        }
+    }
+
+end:
+    return 0;
+}
+
+static int node_verify_min(Node *node_challenge){
+    return node_verify(node_challenge, VERIFY_MIN);
+}
+
+static int node_verify_max(Node *node_challenge){
+    return node_verify(node_challenge, VERIFY_MAX);
 }
