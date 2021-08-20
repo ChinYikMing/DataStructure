@@ -1,3 +1,5 @@
+/* used 0 to indicate slot is empty, this is not so good, FIXME */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <limits.h>
@@ -37,6 +39,18 @@
 #define lg2(x) ({ \
     __auto_type ret = (x); \
     ret ? fls(x) - 1 : 0; \
+})
+
+#define min(x, y) ({ \
+    __auto_type _x = (x); \
+    __auto_type _y = (y); \
+    _x < _y ? _x : _y; \
+})
+
+#define max(x, y) ({ \
+    __auto_type _x = (x); \
+    __auto_type _y = (y); \
+    _x > _y ? _x : _y; \
 })
 
 /**
@@ -111,12 +125,26 @@ int main(){
 
     deap_print(&deap);
 
+    // int min = deap_delete_min(&deap);
+
+    // printf("min: %d\n", min);
+    // deap_print(&deap);
+
+    // min = deap_delete_min(&deap);
+    // printf("min: %d\n", min);
+    // deap_print(&deap);
+
     deap_destroy(&deap);
     exit(EXIT_SUCCESS);
 }
 
 int deap_init(Deap *deap){
 
+    /**  initial 
+     *      a
+     *     / \
+     *    b   c
+     */
     size_t cap = 1 << 2;
     deap->arr = malloc(sizeof(int) * cap);
     if(!deap->arr)
@@ -166,6 +194,9 @@ int deap_insert(Deap *deap, int val){
         j = d[j] == 0 ? (j - 1) / 2 : j;     /* if j is empty, then compare to parent */
         if(d[j] != 0 && d[i] > d[j]){
             swap(&d[i], &d[j]);
+            if(val == 40){
+                printf("here\n");
+            }
             deap_heapify_max(deap, j);
         } else
             deap_heapify_min(deap, i);
@@ -204,7 +235,46 @@ int deap_heapify_min(Deap *deap, int start){
 }
 
 int deap_delete_min(Deap *deap){
+    if(deap->size == 0)
+        return 0;
 
+    int *d = deap->arr;
+    int min_idx = 1;           /* root of min heap */
+    int min = d[min_idx];
+    int left_idx, right_idx;
+    int next_min, next_min_idx; 
+
+    int max_idx = min_idx;
+    int deap_level_from_child = deap->level - 1; /* -1 for ignoring root level */
+    if(deap_level_from_child >= 2){
+        int time_to_find_max_idx = deap_level_from_child - 1; /* e.g., level 3 complete binary tree has to do 2 times of 2 * i + 1 */
+        for(int i = 0; i < time_to_find_max_idx; ++i)
+            max_idx = (max_idx << 1) + 2;
+    }
+
+    /* assume left and right have value(not 0) */
+again:
+    left_idx = (min_idx << 1) + 1;
+    right_idx = (min_idx << 1) + 2;
+
+    if(left_idx > max_idx || right_idx > max_idx ||
+            (d[left_idx] == 0 && d[right_idx] == 0) /* has that level, but both empty */){
+            d[min_idx] = 0;
+            goto end;
+    }
+
+    next_min = min(d[left_idx], d[right_idx]);
+    next_min_idx = (next_min == d[left_idx] ? left_idx : right_idx);
+    d[min_idx] = next_min;
+    d[next_min_idx] = 0;
+    min_idx = next_min_idx;
+    goto again;
+
+end:
+    deap_insert(deap, d[deap->size--]);   /* insert last to the leaf to fulfil complete binary tree property */
+    d[deap->size--] = 0;                    /* 0 means empty */
+
+    return min;
 }
 
 int deap_delete_max(Deap *deap){
@@ -236,6 +306,11 @@ int find_j_by_i(int i){
 }
 
 int deap_print(Deap *deap){
+    if(deap->size == 0){
+        printf("empty\n");
+        return 0;
+    }
+
     for(int i = 0; i < deap->capacity; ++i)
         printf("%d\n", deap->arr[i]);
     return 0;
@@ -339,7 +414,7 @@ int deap_bfs(Deap *deap, int start, int *empty_idx){
     while(!rbuf_isempty(&rbuf)){
         idx = rbuf_pop(&rbuf);
 
-        if(d[idx] == 0){       /* -1 means empty */
+        if(d[idx] == 0){       /* 0 means empty */
             *empty_idx = idx;
             goto end;
         } else {
