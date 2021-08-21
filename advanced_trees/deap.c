@@ -73,11 +73,14 @@ typedef struct deap {
 
 enum {
     MIN_HEAP,
-    MAX_HEAP
+    MAX_HEAP,
+    NOR_HEAP     /* normal mode: choose the empty slot from min heap then max heap */
 };
 
 int deap_init(Deap *deap);
-int deap_insert(Deap *deap, int val);
+int deap_insert(Deap *deap, int val, int which_heap);
+int deap_insert_max(Deap *deap, int val); /* insert to max heap */
+int deap_insert_min(Deap *deap, int val); /* insert to min heap */
 int deap_find_empty(Deap *deap, int *which_heap); /* return index of empty slot */
 int deap_heapify_max(Deap *deap, int start);
 int deap_heapify_min(Deap *deap, int start);
@@ -110,29 +113,35 @@ int main(){
     Deap deap;
     deap_init(&deap);
 
-    deap_insert(&deap, 5);
-    deap_insert(&deap, 70);
-    deap_insert(&deap, 15);
-    deap_insert(&deap, 20);
-    deap_insert(&deap, 40);
-    deap_insert(&deap, 60);
-    deap_insert(&deap, 30);
-    deap_insert(&deap, 33);
-    deap_insert(&deap, 80);
-    deap_insert(&deap, 3);
-    deap_insert(&deap, 2);
-    deap_insert(&deap, 90);
-
+    deap_insert(&deap, 1, NOR_HEAP);
+    deap_insert(&deap, 90, NOR_HEAP);
+    deap_insert(&deap, 3, NOR_HEAP);
+    deap_insert(&deap, 5, NOR_HEAP);
+    deap_insert(&deap, 40, NOR_HEAP);
+    deap_insert(&deap, 80, NOR_HEAP);
+    deap_insert(&deap, 10, NOR_HEAP);
+    deap_insert(&deap, 11, NOR_HEAP);
+    deap_insert(&deap, 17, NOR_HEAP);
+    deap_insert(&deap, 16, NOR_HEAP);
+    deap_insert(&deap, 30, NOR_HEAP);
+    deap_insert(&deap, 20, NOR_HEAP);
+    deap_insert(&deap, 70, NOR_HEAP);
+    deap_insert(&deap, 60, NOR_HEAP);
     deap_print(&deap);
 
-    // int min = deap_delete_min(&deap);
-
-    // printf("min: %d\n", min);
-    // deap_print(&deap);
-
-    // min = deap_delete_min(&deap);
-    // printf("min: %d\n", min);
-    // deap_print(&deap);
+    int min = deap_delete_min(&deap);
+    printf("min: %d\n", min);
+    deap_print(&deap);
+    min = deap_delete_min(&deap);
+    printf("min: %d\n", min);
+    deap_print(&deap);
+    
+    int max = deap_delete_max(&deap);
+    printf("max: %d\n", max);
+    deap_print(&deap);
+    max = deap_delete_max(&deap);
+    printf("max: %d\n", max);
+    deap_print(&deap);
 
     deap_destroy(&deap);
     exit(EXIT_SUCCESS);
@@ -141,7 +150,7 @@ int main(){
 int deap_init(Deap *deap){
 
     /**  initial 
-     *      a
+     *      a(root)
      *     / \
      *    b   c
      */
@@ -161,7 +170,7 @@ int deap_init(Deap *deap){
     return 0;
 }
 
-int deap_insert(Deap *deap, int val){
+int deap_insert(Deap *deap, int val, int which_heap){
     if(deap->capacity - 2 == deap->size){ /* full, expands 2x */
         size_t cap_new = deap->capacity << 1;
         void *tmp = realloc(deap->arr, sizeof(int) * cap_new);
@@ -182,7 +191,6 @@ int deap_insert(Deap *deap, int val){
     int j;                                  /* corresponding slot j to slot i*/
     int *d = deap->arr;
     int *corr_j = deap->j;
-    int which_heap;
 
     i = deap_find_empty(deap, &which_heap); /* i is index of min heap */
     d[i] = val;
@@ -194,9 +202,6 @@ int deap_insert(Deap *deap, int val){
         j = d[j] == 0 ? (j - 1) / 2 : j;     /* if j is empty, then compare to parent */
         if(d[j] != 0 && d[i] > d[j]){
             swap(&d[i], &d[j]);
-            if(val == 40){
-                printf("here\n");
-            }
             deap_heapify_max(deap, j);
         } else
             deap_heapify_min(deap, i);
@@ -210,6 +215,14 @@ int deap_insert(Deap *deap, int val){
     }
 
     return 0;
+}
+
+int deap_insert_max(Deap *deap, int val){
+    return deap_insert(deap, val, MAX_HEAP);
+}
+
+int deap_insert_min(Deap *deap, int val){
+    return deap_insert(deap, val, MIN_HEAP);
 }
 
 int deap_heapify_max(Deap *deap, int start){
@@ -244,12 +257,12 @@ int deap_delete_min(Deap *deap){
     int left_idx, right_idx;
     int next_min, next_min_idx; 
 
-    int max_idx = min_idx;
+    int max_idx_in_level = min_idx;
     int deap_level_from_child = deap->level - 1; /* -1 for ignoring root level */
     if(deap_level_from_child >= 2){
         int time_to_find_max_idx = deap_level_from_child - 1; /* e.g., level 3 complete binary tree has to do 2 times of 2 * i + 1 */
         for(int i = 0; i < time_to_find_max_idx; ++i)
-            max_idx = (max_idx << 1) + 2;
+            max_idx_in_level = (max_idx_in_level << 1) + 2;
     }
 
     /* assume left and right have value(not 0) */
@@ -257,7 +270,7 @@ again:
     left_idx = (min_idx << 1) + 1;
     right_idx = (min_idx << 1) + 2;
 
-    if(left_idx > max_idx || right_idx > max_idx ||
+    if(left_idx > max_idx_in_level || right_idx > max_idx_in_level ||  /* reach leaf */
             (d[left_idx] == 0 && d[right_idx] == 0) /* has that level, but both empty */){
             d[min_idx] = 0;
             goto end;
@@ -271,14 +284,55 @@ again:
     goto again;
 
 end:
-    deap_insert(deap, d[deap->size--]);   /* insert last to the leaf to fulfil complete binary tree property */
-    d[deap->size--] = 0;                    /* 0 means empty */
+    if(d[deap->size] != 0)                        /* next min is the child, and the child will set to 0, so we do not have insert it again */
+        deap_insert_min(deap, d[deap->size--]);   /* insert last to the leaf to fulfil complete binary tree property */
+    d[deap->size--] = 0;                          /* 0 means empty */
 
     return min;
 }
 
 int deap_delete_max(Deap *deap){
+    if(deap->size == 0)
+        return 0;
 
+    int *d = deap->arr;
+    int max_idx = 2;           /* root of max heap */
+    int max = d[max_idx];
+    int left_idx, right_idx;
+    int next_max, next_max_idx; 
+
+    int max_idx_in_level = max_idx;
+    int deap_level_from_child = deap->level - 1; /* -1 for ignoring root level */
+    if(deap_level_from_child >= 2){
+        int time_to_find_max_idx = deap_level_from_child - 1; /* e.g., level 3 complete binary tree has to do 2 times of 2 * i + 1 */
+        for(int i = 0; i < time_to_find_max_idx; ++i)
+            max_idx_in_level = (max_idx_in_level << 1) + 2;
+    }
+
+    /* assume left and right have value(not 0), FIXME */
+again:
+    left_idx = (max_idx << 1) + 1;
+    right_idx = (max_idx << 1) + 2;
+
+    if(left_idx > max_idx_in_level || right_idx > max_idx_in_level || /* reach leaf */
+            (d[left_idx] == 0 && d[right_idx] == 0) /* has that level, but both empty */){
+            d[max_idx] = 0;
+            goto end;
+    }
+
+    next_max = max(d[left_idx], d[right_idx]);
+    next_max_idx = (next_max == d[left_idx] ? left_idx : right_idx);
+    d[max_idx] = next_max;
+    d[next_max_idx] = 0;
+    max_idx = next_max_idx;
+    goto again;
+
+end:
+    if(d[deap->size] != 0)                      /* next max is the child, and the child will set to 0, so we do not have insert it again */
+        deap_insert_max(deap, d[deap->size--]); /* insert last to the leaf to fulfil complete binary tree property */
+    d[deap->size--] = 0;                        /* 0 means empty */
+
+    return max;
 }
 
 int deap_destroy(Deap *deap){
@@ -320,13 +374,19 @@ int deap_find_empty(Deap *deap, int *which_heap){
     int *d = deap->arr;
     int found = 0;
     int empty_idx;
-    /* bfs find the min heap(deap->arr[1]), if found then next empty slot is in min heap else in max heap*/
-    found = deap_bfs(deap, 1, &empty_idx);
-    if(found)
-        *which_heap = MIN_HEAP;
-    else {
-        deap_bfs(deap, 2, &empty_idx); /* bfs max heap */
-        *which_heap = MAX_HEAP;
+    if(*which_heap == MAX_HEAP)         /* caller guarantee max heap has empty slot */
+        deap_bfs(deap, 2, &empty_idx);
+    else if(*which_heap == MIN_HEAP)    /* caller guarantee min heap has empty slot */
+        deap_bfs(deap, 1, &empty_idx);
+    else { /* normal mode */
+        /* bfs find the min heap(deap->arr[1]), if found then next empty slot is in min heap else in max heap*/
+        found = deap_bfs(deap, 1, &empty_idx);
+        if(found)
+            *which_heap = MIN_HEAP;
+        else {
+            deap_bfs(deap, 2, &empty_idx); /* bfs max heap */
+            *which_heap = MAX_HEAP;
+        }
     }
 
     return empty_idx;
