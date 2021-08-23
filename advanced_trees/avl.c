@@ -42,6 +42,7 @@ typedef struct avl {
 static int avl_init(AVL *avl);
 static int avl_destroy(AVL *avl);
 static int avl_insert(AVL *avl, int val);
+static Node *avl_search(AVL *avl, int val);
 static int avl_ll_rot(AVL *avl, Node *target_node);
 static int avl_rr_rot(AVL *avl, Node *target_node);
 static int avl_lr_rot(AVL *avl, Node *target_node);
@@ -85,6 +86,12 @@ int main(){
     avl_insert(&avl, 6);
 
     avl_level_order_print(&avl);
+
+    if(avl_search(&avl, 6)){
+        printf("found\n");
+    } else {
+        printf("Not found\n");
+    }
 
     avl_destroy(&avl);
 }
@@ -417,4 +424,24 @@ static int avl_rl_rot(AVL *avl, Node *target_node){
     avl_rr_rot(avl, target_node);
 
     return 0;
+}
+
+static Node *avl_search(AVL *avl, int val){
+    if(avl->size == 0) /* empty */
+        goto end;
+    
+    Node **ptr = &avl->root;
+    Node *node;
+
+    while((node = *ptr)){
+        if(val == node->val) /* found */
+            return node;
+        else if(val > node->val)
+            ptr = &node->right;
+        else if(val < node->val)
+            ptr = &node->left;
+    }
+
+end:
+    return NULL;
 }
